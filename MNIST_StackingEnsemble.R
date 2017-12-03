@@ -98,7 +98,7 @@ model1 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       ctx=devices, num.round=36, array.batch.size=100,
                                       learning.rate=0.05, momentum=0.8, wd=0.00001,
                                       eval.metric=mx.metric.accuracy,
-                                      epoch.end.callback=mx.callback.log.train.metric(100)) #
+                                      epoch.end.callback=mx.callback.log.train.metric(100)) 
 #[25] Train-accuracy=0.984233333333335
 #[25] Validation-accuracy=0.990330578512396
 
@@ -127,7 +127,7 @@ model4 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       ctx=devices, num.round=25, array.batch.size=100,
                                       learning.rate=0.1, momentum=0.5, wd=0.00001,
                                       eval.metric=mx.metric.accuracy,
-                                      epoch.end.callback=mx.callback.log.train.metric(100)) #
+                                      epoch.end.callback=mx.callback.log.train.metric(100)) 
 
 
 #start <- proc.time() #103 epochs giver: V=0.991322314049586, T=0.990533333333335
@@ -135,16 +135,19 @@ model4 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
 #                                      eval.data= list(data=valid.array, label=valid_raw[,1]-1),
 # #                                     ctx=devices, num.round=200, array.batch.size=100,
 #                                      learning.rate=0.025, momentum=0.5, wd=0.00001,
-#                                      eval.metric=mx.metric.accuracy,                       #[200] Train-accuracy=0.994300000000001
-#                                      epoch.end.callback=mx.callback.log.train.metric(100)) #[200] Validation-accuracy=0.992148760330578
+#                                      eval.metric=mx.metric.accuracy,                       
+#                                      epoch.end.callback=mx.callback.log.train.metric(100)) 
+#[200] Train-accuracy=0.994300000000001
+#[200] Validation-accuracy=0.992148760330578
 
 model6 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       eval.data= list(data=valid.array, label=valid_raw[,1]-1),
                                       ctx=devices, num.round=150, array.batch.size=100,
                                       learning.rate=0.075, momentum=0.5, wd=0.00001,
-                                      eval.metric=mx.metric.accuracy,                       #[150] Train-accuracy=0.994566666666668
-                                      epoch.end.callback=mx.callback.log.train.metric(100)) #[150] Validation-accuracy=0.99289256198347
-
+                                      eval.metric=mx.metric.accuracy,                       
+                                      epoch.end.callback=mx.callback.log.train.metric(100)) 
+#[150] Train-accuracy=0.994566666666668
+#[150] Validation-accuracy=0.99289256198347
 
 model7 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       eval.data= list(data=valid.array, label=valid_raw[,1]-1),
@@ -160,7 +163,6 @@ model7 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
 
 end <- proc.time()
 print(end - start)
-
 
 ############################## Predictions #################################################
 # The set of models now need to be predicted in order to complete first phase of this kernel
@@ -212,7 +214,9 @@ trainlabels <- train_y
 trainlabels
 
 #cbinding all the predictions together with correct labels
-stackedpredictions <- cbind(pred1.label,pred2.label,pred3.label,pred4.label,pred5.label,pred6.label, validlabels)
+stackedpredictions <- cbind(pred1.label,pred2.label,pred3.label,
+                            pred4.label,pred5.label,pred6.label, 
+                            validlabels)
 head(stackedpredictions)
 
 # Initial test: exporting to do cross-validated prediction in flow
@@ -225,7 +229,6 @@ h2o.summary(stackedpredictions.h2o)
 ############################################################################################
 response <- "validlabels" #labels if components is present
 predictors <- setdiff(names(stackedpredictions.h2o), response)
-
 
 ####### Ensemble deeplearning model 
 ####### current classification err = 0.00630, 6 epochs
@@ -244,22 +247,22 @@ metalearner <- h2o.deeplearning(
   overwrite_with_best_model=T,
   hidden=c(800,400, 200),        
   balance_classes=T,
-  epochs=20,                      ## to keep it short enough
-  score_validation_samples=10000, ## downsample validation set for faster scoring
-  adaptive_rate=T,                ## manually tuned learning rate
-  rho=0.001,                      ## Adaptive learning rate time decay
-  epsilon=1.0e-10,                ## Adaptive learning rate 
+  epochs=20,                      
+  score_validation_samples=10000, 
+  adaptive_rate=T,                
+  rho=0.001,                      
+  epsilon=1.0e-10,               
   input_dropout_ratio=0.25,
   hidden_dropout_ratio=c(0.25,0.25, 0.25), #0.5,0.5
   #loss ="CrossEntropy",  
   #rate=0.001, 
   #rate_annealing=2e-6,            
-  momentum_start=0.2,             ## manually tuned momentum
+  momentum_start=0.2,             
   momentum_stable=0.4, 
   momentum_ramp=1e7, 
-  #l1=1e-5,                        ## L1/L2 regularization
+  #l1=1e-5,                        
   #l2=1e-5,
-  max_w2=10                       ## helps stability for Rectifier
+  max_w2=10                       
 ) 
 summary(metalearner)
 beep()
