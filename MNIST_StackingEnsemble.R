@@ -1,11 +1,7 @@
 # Part 1: Individual learners #####################################
-
-library(readr)
-library(dplyr)
-library(tidyr)
-library(mxnet)
-library(beepr)
-library(h2o)
+library(readr);library(dplyr)
+library(tidyr);library(mxnet)
+library(beepr);library(h2o)
 h2o.init(nthreads = 4)
 
 #set.seed(4321)
@@ -30,10 +26,9 @@ train<-as.matrix(cbind(TARGET,train[,-1]))
 count<-train %>% data.frame() %>% group_by(TARGET)%>% summarise(count=n())
 
 #splitting into 10 groups
-tab<-cbind(c(1,cumsum(count$count)[-10]),cumsum(count$count))
-
+tab<-cbind(c(1,cumsum(count$count)[-10]),
+           cumsum(count$count))
 h <- NULL
-
 for(i in 1:10){
   h<-c(h,sample(tab[i,1]:tab[i,2],3000))
 }
@@ -62,13 +57,10 @@ dim(train.array) <- c(28, 28, 1, ncol(train_x))
 valid.array <- valid
 dim(valid.array) <- c(28, 28, 1, ncol(valid))
 
-############# Network specifications #############################
+############# Network architecture; modified LeNet #############################
 #?mx.symbol.Variable
-
-
 data <- mx.symbol.Variable("data")
 devices<-mx.cpu()
-
 
 #1 convolution
 conv1 <- mx.symbol.Convolution(data=data, kernel=c(5,5), num_filter=20)
@@ -97,9 +89,6 @@ mnnet <- mx.symbol.SoftmaxOutput(data=fc2)
 mx.set.seed(0)
 
 
-
-
-
 ##### Model training #############################
 start <- proc.time()
 
@@ -122,14 +111,12 @@ model2 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       epoch.end.callback=mx.callback.log.train.metric(100)) 
 #[38] Validation-accuracy=0.991404958677685
 
-
 model3 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       eval.data= list(data=valid.array, label=valid_raw[,1]-1),
                                       ctx=devices, num.round=29, array.batch.size=100,
                                       learning.rate=0.05, momentum=0.8, wd=0.00001,
                                       eval.metric=mx.metric.accuracy,
                                       epoch.end.callback=mx.callback.log.train.metric(100)) 
-
 #[29] Train-accuracy=0.986633333333335
 #[29] Validation-accuracy=0.990743801652892
 
@@ -164,12 +151,9 @@ model7 <- mx.model.FeedForward.create(mnnet, X=train.array, y=train_y,
                                       ctx=devices, num.round=36, array.batch.size=100,
                                       learning.rate=0.05, momentum=0.8, wd=0.00001,
                                       eval.metric=mx.metric.accuracy,
-                                      epoch.end.callback=mx.callback.log.train.metric(100)) #[50] Validation-accuracy=0.991652892561983
-#[25] Train-accuracy=0.985600000000001
-#[25] Validation-accuracy=0.992148760330578
+                                      epoch.end.callback=mx.callback.log.train.metric(100))
 #[36] Train-accuracy=0.987100000000001
 #[36] Validation-accuracy=0.993719008264462
-
 
 #beep();Sys.sleep(1);beep();Sys.sleep(1);beep()
 #beep();Sys.sleep(1);beep();Sys.sleep(1);beep()
@@ -178,9 +162,9 @@ end <- proc.time()
 print(end - start)
 
 
-############################## Predictions ########################################
-# Now we have a bag of models, these need to be predicted, and cbined;
-
+############################## Predictions #################################################
+# The set of models now need to be predicted in order to complete first phase of this kernel
+############################################################################################
 
 # evaluation on the final model:
 #number_of_models = seq(1:6)
@@ -213,13 +197,11 @@ pred6 <- predict(model6, valid.array)
 pred6.label <- max.col(t(pred6)) - 1
 a6 <- sum(diag(table(valid_raw[,1]-1,pred6.label)))/nrow(valid_raw)
 
-
 # evaluation on the final model:
 Accuracy <- cbind(a1,a2,a3,a4,a5,a6)
 colnames(Accuracy) = c("Model1","Model2","Model3","Model4","Model5","Model6")
-Accuracy
+print(Accuracy)
 barplot(Accuracy)
-
 
 #Storing the correct values of the validation frame
 validlabels <- valid_raw[,1]-1
@@ -229,26 +211,24 @@ validlabels
 trainlabels <- train_y
 trainlabels
 
-
 #cbinding all the predictions together with correct labels
-
 stackedpredictions <- cbind(pred1.label,pred2.label,pred3.label,pred4.label,pred5.label,pred6.label, validlabels)
 head(stackedpredictions)
 
 # Initial test: exporting to do cross-validated prediction in flow
 stackedpredictions.h2o <- as.h2o(stackedpredictions, destination_frame = "stackedpredictions.hex")
 stackedpredictions.h2o <- as.factor(stackedpredictions.h2o)
-
 h2o.summary(stackedpredictions.h2o)
 
-
-# Part 3: Ensemble learning on top of data #####################################
-
+############################################################################################
+# Part 3: Ensemble learning on top of first predictions ####################################
+############################################################################################
 response <- "validlabels" #labels if components is present
 predictors <- setdiff(names(stackedpredictions.h2o), response)
 
 
-####### Ensemble deeplearning model ######      current classification err = 0.00630, 6 epochs
+####### Ensemble deeplearning model 
+####### current classification err = 0.00630, 6 epochs
 
 #t0 <- proc.time()
 metalearner <- h2o.deeplearning(
@@ -261,15 +241,14 @@ metalearner <- h2o.deeplearning(
   x=predictors, 
   y=response, 
   activation="RectifierWithDropout",
-  overwrite_with_best_model=T,    ## IF false = Return the final model after 10 epochs, even if not the best
-  hidden=c(800,400, 200),              ## more hidden layers -> more complex interactions
+  overwrite_with_best_model=T,
+  hidden=c(800,400, 200),        
   balance_classes=T,
   epochs=20,                      ## to keep it short enough
   score_validation_samples=10000, ## downsample validation set for faster scoring
-  #score_duty_cycle=0.025,        ## don't score more than 2.5% of the wall time
   adaptive_rate=T,                ## manually tuned learning rate
-  #rho=0.001,                     ##Adaptive learning rate time decay factor (similarity to prior updates)
-  #epsilon=1.0e-10,               ##Adaptive learning rate parameter, similar to learn rate annealing during initial training phase. Typical values are between 1.0e-10 and 1.0e-4
+  rho=0.001,                      ## Adaptive learning rate time decay
+  epsilon=1.0e-10,                ## Adaptive learning rate 
   input_dropout_ratio=0.25,
   hidden_dropout_ratio=c(0.25,0.25, 0.25), #0.5,0.5
   #loss ="CrossEntropy",  
@@ -289,18 +268,11 @@ beep()
 #t
 #?h2o.deeplearning
 
-
-
-
-
-
-
-
-##########################################################
+###########################################################
 ########## Prediction from ensemble learners ##############
 
-test <- read.csv("/users/mikeriess/desktop/MNIST/test.csv")
-#will give errrs ^^
+test <- read.csv("test.csv")
+#will give errs ^^
 
 #converting testframe into numeric
 for(i in 1:ncol(test)){
@@ -312,10 +284,8 @@ test2<-t(as.matrix(test/255))
 dim(test2)<-c(28,28,1,ncol(test2))
 
 # Predicting from all the models:
-
 #pre <-predict(model,test2)
 #predtarget_test <- apply(pre,2,function(x) which.max(x))-1
-
 
 pred1_1 <- predict(model1, test2)
 pred1_1.label <- apply(pred1_1,2,function(x) which.max(x))-1
@@ -354,7 +324,6 @@ stackedpredictions2.h2o <- as.h2o(stackedpredictions2,
 #stackedpredictions2.h2o <- as.factor(stackedpredictions2.h2o)
 
 df.pred = h2o.predict(object = metalearner, newdata = stackedpredictions2.h2o)
-
 #summary(df.pred)
 
 PREDS.df <- as.data.frame(df.pred)
@@ -369,5 +338,3 @@ str(PREDS.df)
 
 write.csv(PREDS.df ,file="submission_stacked_December30.csv", 
           row.names = FALSE) # col.names = TRUE,
-
-
